@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>黑块跳一跳</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            padding: 12px;
+        }
+        /* 合规启动页样式 */
+        #compliancePage {
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            font-family: sans-serif;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 9999;
+        }
+        #adviceText {
+            font-size: 16px;
+            line-height: 1.8;
+            text-align: center;
+            max-width: 500px;
+            margin-bottom: 30px;
+        }
+        #ageTip {
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 15px;
+        }
+        #copyright {
+            font-size: 12px;
+            color: #999;
+            position: absolute;
+            bottom: 40px;
+        }
+        .top-bar {
+            width: 100%;
+            max-width: 750px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            z-index: 10;
+        }
+        .score-display {
+            font-size: 28px;
+            font-weight: bold;
+            color: #000000;
+        }
+        .restart-btn {
+            padding: 10px 20px;
+            background-color: #000000;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .restart-btn:active {
+            opacity: 0.7;
+        }
+        #gameCanvas {
+            border-radius: 8px;
+            background-color: #f8f8f8;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            max-width: 100%;
+            touch-action: none;
+        }
+        .game-over-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+        .game-over-card {
+            background-color: #ffffff;
+            padding: 40px 60px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .game-over-card h2 {
+            font-size: 24px;
+            color: #000000;
+            margin-bottom: 10px; /* 调整间距，给称号留位置 */
+        }
+        /* 新增：称号样式 */
+        .title-text {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ff6600; /* 橙色突出显示 */
+            margin-bottom: 20px;
+        }
+        .final-score-text {
+            font-size: 40px;
+            font-weight: bold;
+            color: #000000;
+            margin-bottom: 30px;
+        }
+        .again-btn {
+            padding: 12px 40px;
+            background-color: #000000;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .again-btn:active {
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <!-- 合规启动页 -->
+    <div id="compliancePage">
+        <p id="adviceText">抵制不良游戏，拒绝盗版游戏。注意自我保护，谨防受骗上当。适度游戏益脑，沉迷游戏伤身。合理安排时间，享受健康生活。</p>
+        <p id="ageTip">适龄提示：本游戏适合8岁以上人群</p>
+        <p id="copyright">著作权人：你的名字 | 软著登记号：待下发</p>
+    </div>
+
+    <div class="top-bar">
+        <div class="score-display">分数: <span id="score">0</span></div>
+        <button class="restart-btn" id="restartBtn">重新开始</button>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="game-over-mask" id="gameOverMask">
+        <div class="game-over-card">
+            <h2>游戏结束</h2>
+            <!-- 称号显示区域 -->
+            <div class="title-text" id="titleText">菜鸟</div>
+            <div class="final-score-text">最终得分: <span id="finalScore">0</span></div>
+            <button class="again-btn" id="againBtn">再来一局</button>
+        </div>
+    </div>
+
+    <script>
+        // 合规页隐藏
+        const compliancePage = document.getElementById('compliancePage');
+        setTimeout(() => {
+            compliancePage.style.display = 'none';
+        }, 3000);
+
+        // 画布初始化
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDom = document.getElementById('score');
+        const finalScoreDom = document.getElementById('finalScore');
+        const titleTextDom = document.getElementById('titleText'); // 新增：称号DOM
+        const gameOverMask = document.getElementById('gameOverMask');
+        const restartBtn = document.getElementById('restartBtn');
+        const againBtn = document.getElementById('againBtn');
+
+        function resizeCanvas() {
+            const screenWidth = Math.min(window.innerWidth - 24, 750);
+            canvas.width = screenWidth;
+            canvas.height = Math.min(window.innerHeight - 100, screenWidth * 1.8);
+        }
+        resizeCanvas();
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            initGame();
+        });
+        window.addEventListener('orientationchange', () => {
+            resizeCanvas();
+            initGame();
+        });
+
+        // 游戏核心配置
+        const config = {
+            gravity: 0.45,
+            jumpPowerFactor: 0.16, // 关键修改：原0.32 → 减半为0.16
+            maxJumpPower: 13,       // 关键修改：原26 → 减半为13
+            platformWidth: { min: 35, max: 130 },
+            platformGap: { min: 70, max: 220 },
+            platformHeight: 22,
+            playerSize: 32
+        };
+
+        // 游戏状态管理
+        let gameState = {
+            score: 0,
+            isPlaying: false,
+            isCharging: false,
+            chargeTime: 0,
+            chargeInterval: null,
+            animFrame: 0,
+            player: {
+                x: 0,
+                y: 0,
+                vx: 0,
+                vy: 0,
+                isJumping: false
+            },
+            platforms: [],
+            platformIdCounter: 0,
+            currentPlatformId: 0,
+            groundY: 0,
+            isRevived: false
+        };
+
+        // 游戏初始化
+        function initGame() {
+            clearInterval(gameState.chargeInterval);
+            gameState.isCharging = false;
+            gameState.chargeTime = 0;
+
+            gameState.score = 0;
+            gameState.isRevived = false;
+            gameState.platformIdCounter = 0;
+            gameState.currentPlatformId = 0;
+            gameState.animFrame = 0;
+            scoreDom.textContent = 0;
+            gameState.isPlaying = true;
+            gameState.player.isJumping = false;
+            gameOverMask.style.display = 'none';
+
+            gameState.groundY = Math.max(canvas.height - 180, canvas.height * 0.7);
+
+            gameState.platforms = [];
+            gameState.platforms.push({
+                id: gameState.platformIdCounter++,
+                x: 60,
+                y: gameState.groundY,
+                width: 120
+            });
+            for (let i = 1; i < 8; i++) {
+                generatePlatform();
+            }
+
+            const firstPlatform = gameState.platforms[0];
+            gameState.player.x = firstPlatform.x + firstPlatform.width / 2;
+            gameState.player.y = gameState.groundY - config.playerSize;
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 生成新平台
+        function generatePlatform() {
+            const lastPlatform = gameState.platforms[gameState.platforms.length - 1];
+            const randomGap = Math.random() * (config.platformGap.max - config.platformGap.min) + config.platformGap.min;
+            const randomWidth = Math.random() * (config.platformWidth.max - config.platformWidth.min) + config.platformWidth.min;
+            
+            gameState.platforms.push({
+                id: gameState.platformIdCounter++,
+                x: lastPlatform.x + lastPlatform.width + randomGap,
+                y: gameState.groundY,
+                width: randomWidth
+            });
+        }
+
+        // 平台刷新
+        function refreshPlatforms() {
+            gameState.platforms = gameState.platforms.filter(platform => platform.x > -200);
+            while (gameState.platforms.length < 8) {
+                generatePlatform();
+            }
+        }
+
+        // 落地蓄力显示腿
+        function drawPlayer() {
+            const player = gameState.player;
+            const baseSize = config.playerSize;
+            let w = baseSize;
+            let h = baseSize;
+
+            // 蓄力压扁
+            if (gameState.isCharging) {
+                const scale = gameState.chargeTime / 100;
+                w = baseSize + scale * 22;
+                h = baseSize - scale * 18;
+            }
+
+            // 绘制方块
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(player.x - w / 2, player.y, w, h);
+            const legStartY = player.y + h;
+
+            // ========== 修复逻辑：落地（isJumping=false）必显示腿，空中才判断边缘 ==========
+            let shouldDrawLegs = true; // 默认显示腿
+
+            if (player.isJumping) {
+                // 只有在空中时，才判断是否在平台边缘，防止腿穿模
+                let onPlatformValid = false;
+                for (let p of gameState.platforms) {
+                    if (
+                        player.y + baseSize >= p.y &&
+                        player.y + baseSize <= p.y + config.platformHeight + 10 &&
+                        player.vy >= 0
+                    ) {
+                        if (player.x >= p.x + 8 && player.x <= p.x + p.width - 8) {
+                            onPlatformValid = true;
+                        }
+                        break;
+                    }
+                }
+                shouldDrawLegs = onPlatformValid; // 空中时，只有在平台内才显示腿
+            }
+
+            // 绘制腿
+            if (shouldDrawLegs) {
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.strokeStyle = '#000000';
+                const legRootWidth = 7;
+                const legLength = 16;
+                const anim = gameState.animFrame * 0.15;
+
+                if (player.isJumping) {
+                    const jumpPhase = player.vy < 0 ? 'up' : 'down';
+                    const swing = Math.sin(anim) * 6;
+
+                    if (jumpPhase === 'up') {
+                        // 左腿
+                        ctx.beginPath();
+                        ctx.moveTo(player.x - w/3.5, legStartY);
+                        ctx.lineTo(player.x - w/3.5 - 3, legStartY + legLength);
+                        ctx.lineWidth = legRootWidth;
+                        ctx.stroke();
+                        // 右腿
+                        ctx.beginPath();
+                        ctx.moveTo(player.x + w/3.5, legStartY);
+                        ctx.lineTo(player.x + w/3.5 + 3, legStartY + legLength);
+                        ctx.lineWidth = legRootWidth;
+                        ctx.stroke();
+                    } else {
+                        // 左腿
+                        ctx.beginPath();
+                        ctx.moveTo(player.x - w/3.5, legStartY);
+                        ctx.quadraticCurveTo(
+                            player.x - w/3.5 - 8 - swing, legStartY + legLength/2,
+                            player.x - w/3.5 - 10 - swing, legStartY + legLength + 2
+                        );
+                        ctx.lineWidth = legRootWidth;
+                        ctx.stroke();
+                        // 右腿
+                        ctx.beginPath();
+                        ctx.moveTo(player.x + w/3.5, legStartY);
+                        ctx.quadraticCurveTo(
+                            player.x + w/3.5 + 8 + swing, legStartY + legLength/2,
+                            player.x + w/3.5 + 10 + swing, legStartY + legLength + 2
+                        );
+                        ctx.lineWidth = legRootWidth;
+                        ctx.stroke();
+                    }
+                } else {
+                    // 地面蓄力：微摆腿
+                    const swing = Math.sin(anim) * 2;
+                    // 左腿
+                    ctx.beginPath();
+                    ctx.moveTo(player.x - w/3.5, legStartY);
+                    ctx.lineTo(player.x - w/3.5 - swing, legStartY + legLength - 4);
+                    ctx.lineWidth = legRootWidth;
+                    ctx.stroke();
+                    // 右腿
+                    ctx.beginPath();
+                    ctx.moveTo(player.x + w/3.5, legStartY);
+                    ctx.lineTo(player.x + w/3.5 + swing, legStartY + legLength - 4);
+                    ctx.lineWidth = legRootWidth;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // 绘制平台
+        function drawPlatforms() {
+            ctx.fillStyle = '#000000';
+            gameState.platforms.forEach(platform => {
+                ctx.fillRect(platform.x, platform.y, platform.width, config.platformHeight);
+            });
+        }
+
+        // 绘制蓄力条
+        function drawChargeBar() {
+            if (gameState.isCharging) {
+                const chargeRate = Math.min(gameState.chargeTime / 100, 1);
+                const barWidth = 120;
+                const barHeight = 12;
+                const x = (canvas.width - barWidth) / 2;
+                const y = 40;
+
+                ctx.fillStyle = '#e0e0e0';
+                ctx.fillRect(x, y, barWidth, barHeight);
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(x, y, barWidth * chargeRate, barHeight);
+            }
+        }
+
+        // 游戏主循环
+        function gameLoop() {
+            if (!gameState.isPlaying) return;
+            gameState.animFrame++;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (gameState.player.isJumping) {
+                const player = gameState.player;
+                player.x += player.vx;
+                player.y += player.vy;
+                player.vy += config.gravity;
+
+                if (player.x > canvas.width / 2) {
+                    const offset = player.x - canvas.width / 2;
+                    player.x = canvas.width / 2;
+                    gameState.platforms.forEach(platform => {
+                        platform.x -= offset;
+                    });
+                    refreshPlatforms();
+                }
+
+                let onPlatform = false;
+                for (let i = 0; i < gameState.platforms.length; i++) {
+                    const platform = gameState.platforms[i];
+                    if (
+                        player.y + config.playerSize >= platform.y &&
+                        player.y + config.playerSize <= platform.y + config.platformHeight + 10 &&
+                        player.x >= platform.x - 5 &&
+                        player.x <= platform.x + platform.width + 5 &&
+                        player.vy > 0
+                    ) {
+                        onPlatform = true;
+                        player.y = platform.y - config.playerSize;
+                        player.vx = 0;
+                        player.vy = 0;
+                        player.isJumping = false;
+                        gameState.isRevived = false;
+
+                        if (platform.id > gameState.currentPlatformId) {
+                            gameState.currentPlatformId = platform.id;
+                            gameState.score++;
+                            scoreDom.textContent = gameState.score;
+                            generatePlatform();
+                        }
+                        break;
+                    }
+                }
+
+                if (player.y > canvas.height || player.x < 0) {
+                    if(gameState.score % 2 === 1 && !gameState.isRevived) {
+                        player.y = -50;
+                        player.x = canvas.width / 2;
+                        player.vx = 0;
+                        player.vy = 0;
+                        player.isJumping = true;
+                        gameState.isRevived = true;
+                    } else {
+                        gameOver();
+                        return;
+                    }
+                }
+            }
+
+            drawPlatforms();
+            drawPlayer();
+            drawChargeBar();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 游戏结束（核心修改：清晰的if-else if-else称号判断）
+        function gameOver() {
+            gameState.isPlaying = false;
+            finalScoreDom.textContent = gameState.score;
+            
+            // 核心：按分数区间判断称号
+            let title = '';
+            if (gameState.score <= 20) {
+                // 0-20分（含）→ 菜鸟
+                title = '菜鸟';
+            } else if (gameState.score > 20 && gameState.score < 50) {
+                // 20-50分（不含50）→ 入上入
+                title = '入上入';
+            } else {
+                // 50分及以上 → 跳跳大王
+                title = '跳跳大王';
+            }
+            titleTextDom.textContent = title;
+
+            gameOverMask.style.display = 'flex';
+        }
+
+        // 开始蓄力
+        function startCharge() {
+            if (!gameState.isPlaying || gameState.player.isJumping) return;
+            gameState.isCharging = true;
+            gameState.chargeTime = 0;
+            gameState.chargeInterval = setInterval(() => {
+                gameState.chargeTime += 10;
+                if (gameState.chargeTime > 100) gameState.chargeTime = 100;
+            }, 10);
+        }
+
+        // 释放跳跃
+        function releaseJump() {
+            if (!gameState.isCharging || !gameState.isPlaying) return;
+            clearInterval(gameState.chargeInterval);
+            gameState.isCharging = false;
+
+            const jumpPower = Math.min(gameState.chargeTime * config.jumpPowerFactor, config.maxJumpPower);
+            gameState.player.vx = jumpPower * 0.8;
+            gameState.player.vy = -jumpPower;
+            gameState.player.isJumping = true;
+        }
+
+        // 事件监听
+        canvas.addEventListener('mousedown', startCharge);
+        canvas.addEventListener('mouseup', releaseJump);
+        canvas.addEventListener('mouseleave', releaseJump);
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startCharge();
+        }, { passive: false });
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            releaseJump();
+        }, { passive: false });
+        canvas.addEventListener('touchcancel', releaseJump);
+
+        restartBtn.addEventListener('click', () => initGame());
+        againBtn.addEventListener('click', () => initGame());
+
+        window.addEventListener('load', () => initGame());
+    </script>
+</body>
+</html>
