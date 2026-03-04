@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no, email=no">
-    <title>黑块跳一跳 · 完整版</title>
+    <title>黑块跳一跳 · 最终版</title>
     <style>
         * {
             margin: 0;
@@ -85,7 +85,7 @@
             display: flex;
         }
 
-        /* 主菜单开始按钮 - 无动画 */
+        /* 主菜单开始按钮 */
         #startMenuBtn {
             position: absolute;
             bottom: 25%;
@@ -114,40 +114,32 @@
             background: #222;
         }
 
-        /* 分数区 - 左上角 */
+        /* 分数区 - 左上角 (目标分数和累计分数) - 背景透明 */
         .score-area {
             position: absolute;
             top: 16px;
             left: 20px;
             z-index: 200;
-            background: rgba(0, 0, 0, 0.65);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
-            padding: 12px 20px;
-            border-radius: 40px;
-            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: transparent;
             color: white;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-shadow: 0 2px 5px rgba(0,0,0,0.8);
+            padding: 8px 12px;
         }
         .score-area.hide {
             display: none;
         }
-        .score-display {
+        .target-score {
+            font-size: 20px;
+            color: #ffcc66;
+            margin-bottom: 4px;
+        }
+        .current-score {
             font-size: 28px;
             font-weight: 700;
             line-height: 1.2;
-            color: #fff;
-            text-shadow: 0 2px 5px rgba(0,0,0,0.5);
-        }
-        .high-score {
-            font-size: 16px;
-            color: #ffcc66;
-            font-weight: 600;
-            margin-top: 4px;
-            letter-spacing: 0.5px;
         }
 
-        /* 设置面板 - 白色滑块 */
+        /* 设置面板 */
         .volume-panel {
             position: absolute;
             top: 85px;
@@ -299,7 +291,7 @@
             fill: currentColor;
         }
 
-        /* 游戏结束蒙层 */
+        /* 游戏结束/胜利蒙层 */
         .game-over-mask {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(0,0,0,0.65); display: none;
@@ -310,7 +302,7 @@
             text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.25); max-width: 90%;
         }
         .game-over-card h2 { font-size: 27px; font-weight: 700; color: #000000; margin-bottom: 8px; letter-spacing: 1.5px; }
-        .title-text { font-size: 33px; font-weight: 700; color: #ff6600; margin-bottom: 20px; letter-spacing: 3px; }
+        .title-text { font-size: 33px; font-weight: 700; color: #ffcc66; margin-bottom: 20px; letter-spacing: 3px; }
         .final-score-text { font-size: 42px; font-weight: 700; color: #000000; margin-bottom: 30px; letter-spacing: 1px; }
         .again-btn {
             padding: 14px 48px; background-color: #000000; color: #ffffff;
@@ -319,11 +311,31 @@
         }
         .again-btn:active { opacity: 0.75; }
 
+        /* 提示弹窗（长按提示 + 关卡提示） */
+        #tipOverlay, #levelTip {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 20px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s;
+            z-index: 1000;
+            font-weight: 700;
+            white-space: nowrap;
+        }
         #tipOverlay {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.75); color: #fff; padding: 14px 28px;
-            border-radius: 12px; font-size: 15.5px; pointer-events: none;
-            opacity: 0; transition: opacity 0.4s; z-index: 1000; font-weight: 700;
+            background: rgba(0,0,0,0.75);
+        }
+        #levelTip {
+            background: rgba(0, 0, 0, 0.9); /* 第一关黑色 */
+        }
+        #levelTip.difficult {
+            background: rgba(200, 0, 0, 0.9); /* 第二关红色 */
         }
     </style>
 </head>
@@ -337,10 +349,10 @@
         </div>
     </div>
 
-    <!-- 左上角分数 -->
+    <!-- 左上角分数 (目标+累计) - 无背景 -->
     <div class="score-area" id="scoreArea">
-        <div class="score-display">分数: <span id="score">0</span></div>
-        <div class="high-score">最高: <span id="highScore">0</span></div>
+        <div class="target-score">目标: <span id="targetScore">1</span></div>
+        <div class="current-score">累计: <span id="currentScore">0</span></div>
     </div>
 
     <!-- 右上角控件 -->
@@ -392,6 +404,7 @@
 
     <canvas id="gameCanvas"></canvas>
     <div id="tipOverlay">长按屏幕蓄力跳跃！</div>
+    <div id="levelTip"></div>
 
     <!-- 游戏规则弹窗 -->
     <div id="rulesModal">
@@ -407,15 +420,16 @@
                 <li>✅ 准确落到前方平台即可得分</li>
                 <li>💀 掉落游戏结束（奇数分可自动复活一次）</li>
                 <li>📍 右上角「前方视野」小地图可提前看清后面平台</li>
-                <li>🏆 称号规则：20分以下「菜鸟」，20-50分「入上入」，50分以上「跳跳大王」</li>
+                <li>🏆 第一关目标1分，通关后进入第二关「难度巨增」目标99分！</li>
+                <li>第二关20-98分称号「入上入」，99分「跳跳大王」并通关</li>
             </ul>
         </div>
     </div>
 
-    <!-- 游戏结束蒙层 -->
+    <!-- 游戏结束/胜利蒙层 -->
     <div class="game-over-mask" id="gameOverMask">
         <div class="game-over-card">
-            <h2>游戏结束</h2>
+            <h2 id="gameOverTitle">游戏结束</h2>
             <div class="title-text" id="titleText">菜鸟</div>
             <div class="final-score-text">最终得分: <span id="finalScore">0</span></div>
             <button class="again-btn" id="againBtn">再来一局</button>
@@ -435,9 +449,12 @@
                 dpr: window.devicePixelRatio || 1
             };
 
+            let tipShown = false; // 长按提示仅显示一次
+
             let gameState = {
+                level: 1,
+                targetScore: 1,
                 score: 0,
-                highScore: localStorage.getItem('jumpHighScore') || 0,
                 isPlaying: false,
                 isPreview: true,
                 isCharging: false,
@@ -450,22 +467,23 @@
                 groundY: 0,
                 isRevived: false,
                 animFrameId: null,
-                // 新增：用于五秒提示
-                inactiveTimerStart: null,       // 静止计时开始时间
-                showIdleMessage: false,         // 是否显示对话框
-                idleMessageTimeout: null         // 隐藏对话框的定时器
+                inactiveTimerStart: null,
+                showIdleMessage: false,
+                idleMessageTimeout: null
             };
 
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d');
             const scoreArea = document.getElementById('scoreArea');
-            const scoreDom = document.getElementById('score');
-            const highScoreDom = document.getElementById('highScore');
+            const targetScoreSpan = document.getElementById('targetScore');
+            const currentScoreSpan = document.getElementById('currentScore');
             const finalScoreDom = document.getElementById('finalScore');
             const titleTextDom = document.getElementById('titleText');
+            const gameOverTitle = document.getElementById('gameOverTitle');
             const gameOverMask = document.getElementById('gameOverMask');
             const againBtn = document.getElementById('againBtn');
             const tipOverlay = document.getElementById('tipOverlay');
+            const levelTip = document.getElementById('levelTip');
             const rulesModal = document.getElementById('rulesModal');
             const closeRulesBtn = document.getElementById('closeRulesBtn');
             const startMenuBtn = document.getElementById('startMenuBtn');
@@ -480,7 +498,8 @@
             const muteCross = document.getElementById('muteCross');
             const exitGameBtn = document.getElementById('exitGameBtn');
 
-            highScoreDom.textContent = gameState.highScore;
+            targetScoreSpan.textContent = gameState.targetScore;
+            currentScoreSpan.textContent = gameState.score;
 
             // 音频系统
             let audioCtx = null;
@@ -572,7 +591,6 @@
                 }, 180);
             }
 
-            // 出场音效
             function playStartSound() {
                 initAudio();
                 if (!audioCtx) return;
@@ -585,7 +603,6 @@
                 osc.start(now); osc.stop(now + 0.3);
             }
 
-            // 死亡音效
             function playDeathSound() {
                 initAudio();
                 if (!audioCtx) return;
@@ -667,9 +684,7 @@
                 while (gameState.platforms.length < 9) generatePlatform();
             }
 
-            // ========== 新增：重置静止计时器的函数 ==========
             function resetInactiveTimer() {
-                // 只要玩家有操作，就重置计时器并隐藏消息
                 gameState.inactiveTimerStart = null;
                 if (gameState.showIdleMessage) {
                     gameState.showIdleMessage = false;
@@ -680,7 +695,7 @@
                 }
             }
 
-            // ========== 绘制对话框 ==========
+            // 绘制对话框
             function drawIdleMessage() {
                 if (!gameState.showIdleMessage) return;
 
@@ -692,19 +707,16 @@
                 const padding = 16;
                 const boxWidth = textWidth + padding * 2;
                 const boxHeight = fontSize + padding * 1.5;
-                const tailSize = 12; // 三角形大小
+                const tailSize = 12;
 
-                // 对话框位置：玩家上方
                 let boxX = p.x - boxWidth / 2;
                 let boxY = p.y - boxHeight - tailSize - 5;
 
-                // 确保不超出画布左右边界
                 if (boxX < 10) boxX = 10;
                 if (boxX + boxWidth > canvas.width / config.dpr - 10) {
                     boxX = canvas.width / config.dpr - boxWidth - 10;
                 }
 
-                // 绘制黑色圆角矩形
                 ctx.fillStyle = '#000';
                 ctx.shadowColor = 'rgba(0,0,0,0.5)';
                 ctx.shadowBlur = 8;
@@ -713,7 +725,6 @@
                 ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 12);
                 ctx.fill();
 
-                // 绘制三角形（云朵尾巴，指向玩家）
                 ctx.beginPath();
                 ctx.moveTo(p.x - tailSize, boxY + boxHeight);
                 ctx.lineTo(p.x, boxY + boxHeight + tailSize);
@@ -721,41 +732,57 @@
                 ctx.closePath();
                 ctx.fill();
 
-                // 绘制文字
-                ctx.shadowColor = 'transparent'; // 去掉文字阴影
+                ctx.shadowColor = 'transparent';
                 ctx.fillStyle = '#fff';
                 ctx.font = `bold ${fontSize}px "PingFang SC", system-ui`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(text, boxX + boxWidth / 2, boxY + boxHeight / 2);
 
-                // 恢复阴影
                 ctx.shadowColor = 'rgba(0,0,0,0.4)';
                 ctx.shadowBlur = 4;
                 ctx.shadowOffsetY = 2;
             }
 
-            // 绘制函数
+            // 绘制玩家
             function drawPlayer() {
-                const p = gameState.player; let w = config.playerSize; let h = config.playerSize;
+                const p = gameState.player;
+                let w = config.playerSize;
+                let h = config.playerSize;
                 if (gameState.isCharging) {
                     const progress = Math.min((Date.now() - gameState.chargeStartTime) / 800, 1);
-                    w = config.playerSize + progress * 24; h = config.playerSize - progress * 19;
+                    w = config.playerSize + progress * 24;
+                    h = config.playerSize - progress * 19;
                 }
                 ctx.fillStyle = '#1a1a1a';
-                ctx.beginPath(); ctx.roundRect(p.x - w / 2, p.y, w, h, 6); ctx.fill();
+                ctx.beginPath();
+                ctx.roundRect(p.x - w / 2, p.y, w, h, 6);
+                ctx.fill();
 
                 if (gameState.isCharging || p.isJumping) {
-                    const legY = p.y + h; ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 7.5; ctx.lineCap = 'round';
+                    const legY = p.y + h;
+                    ctx.strokeStyle = '#1a1a1a';
+                    ctx.lineWidth = 7.5;
+                    ctx.lineCap = 'round';
                     const anim = Math.sin(gameState.animFrame * 0.22) * (p.isJumping ? 7 : 2.5);
                     if (p.isJumping) {
-                        ctx.beginPath(); ctx.moveTo(p.x - w / 3.5, legY);
-                        ctx.quadraticCurveTo(p.x - w / 3.5 - 9 - anim, legY + 11, p.x - w / 3.5 - 11 - anim, legY + 22); ctx.stroke();
-                        ctx.beginPath(); ctx.moveTo(p.x + w / 3.5, legY);
-                        ctx.quadraticCurveTo(p.x + w / 3.5 + 9 + anim, legY + 11, p.x + w / 3.5 + 11 + anim, legY + 22); ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(p.x - w / 3.5, legY);
+                        ctx.quadraticCurveTo(p.x - w / 3.5 - 9 - anim, legY + 11, p.x - w / 3.5 - 11 - anim, legY + 22);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(p.x + w / 3.5, legY);
+                        ctx.quadraticCurveTo(p.x + w / 3.5 + 9 + anim, legY + 11, p.x + w / 3.5 + 11 + anim, legY + 22);
+                        ctx.stroke();
                     } else {
-                        ctx.beginPath(); ctx.moveTo(p.x - w / 3.5, legY); ctx.lineTo(p.x - w / 3.5 - anim, legY + 19); ctx.stroke();
-                        ctx.beginPath(); ctx.moveTo(p.x + w / 3.5, legY); ctx.lineTo(p.x + w / 3.5 + anim, legY + 19); ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(p.x - w / 3.5, legY);
+                        ctx.lineTo(p.x - w / 3.5 - anim, legY + 19);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(p.x + w / 3.5, legY);
+                        ctx.lineTo(p.x + w / 3.5 + anim, legY + 19);
+                        ctx.stroke();
                     }
                 }
             }
@@ -764,16 +791,27 @@
                 ctx.fillStyle = '#1a1a1a';
                 gameState.platforms.forEach(p => {
                     ctx.fillRect(p.x, p.y, p.width, config.platformHeight);
-                    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(p.x + 3, p.y + 3, p.width - 8, 4); ctx.fillStyle = '#1a1a1a';
+                    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+                    ctx.fillRect(p.x + 3, p.y + 3, p.width - 8, 4);
+                    ctx.fillStyle = '#1a1a1a';
                 });
             }
 
+            // 蓄力条绘制在玩家正上方
             function drawChargeBar() {
                 if (!gameState.isCharging) return;
                 const progress = Math.min((Date.now() - gameState.chargeStartTime) / 800, 1);
-                const barW = 140, barH = 14; const x = (canvas.width / config.dpr - barW) / 2; const y = 80;
-                ctx.fillStyle = '#e5e5e5'; ctx.fillRect(x, y, barW, barH);
-                ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x, y, barW * progress, barH);
+                const barWidth = 80;  // 宽度适中
+                const barHeight = 10;
+                const x = gameState.player.x - barWidth / 2;
+                const y = gameState.player.y - 30; // 玩家上方30px
+
+                // 背景
+                ctx.fillStyle = 'rgba(200,200,200,0.8)';
+                ctx.fillRect(x, y, barWidth, barHeight);
+                // 蓄力填充
+                ctx.fillStyle = '#000';
+                ctx.fillRect(x, y, barWidth * progress, barHeight);
             }
 
             function drawMinimap() {
@@ -889,14 +927,48 @@
                             if (pl.id > gameState.currentPlatformId) {
                                 gameState.currentPlatformId = pl.id;
                                 if (gameState.isPlaying) {
-                                    gameState.score++; scoreDom.textContent = gameState.score;
+                                    gameState.score++;
+                                    currentScoreSpan.textContent = gameState.score;
+
+                                    // 检查是否达到目标分数
+                                    if (gameState.score >= gameState.targetScore) {
+                                        if (gameState.level === 1 && gameState.targetScore === 1) {
+                                            // 第一关通关，进入第二关
+                                            gameState.level = 2;
+                                            gameState.targetScore = 99;
+                                            targetScoreSpan.textContent = 99;
+                                            gameState.score = 0;
+                                            currentScoreSpan.textContent = 0;
+                                            gameState.platforms = [];
+                                            gameState.platformIdCounter = 0;
+                                            gameState.currentPlatformId = 0;
+                                            const firstX = 58;
+                                            gameState.platforms.push({ id: gameState.platformIdCounter++, x: firstX, y: gameState.groundY, width: 118 });
+                                            for (let i = 1; i < 9; i++) generatePlatform();
+                                            const firstPlat = gameState.platforms[0];
+                                            gameState.player.x = firstPlat.x + firstPlat.width / 2;
+                                            gameState.player.y = -100;
+                                            gameState.player.vx = 0;
+                                            gameState.player.vy = 0;
+                                            gameState.player.isJumping = true;
+                                            // 显示第二关提示
+                                            levelTip.textContent = '第二关 · 难度巨增！';
+                                            levelTip.className = 'difficult';
+                                            levelTip.style.opacity = '1';
+                                            setTimeout(() => {
+                                                levelTip.style.opacity = '0';
+                                            }, 1500);
+                                        } else if (gameState.level === 2 && gameState.score === 99) {
+                                            gameWin();
+                                            return;
+                                        }
+                                    }
                                 }
                                 generatePlatform();
                             }
                             if (gameState.isPlaying) {
                                 if (navigator.vibrate) navigator.vibrate(18);
                                 playLandSound();
-                                // 落地后玩家处于静止状态，重置计时器（让计时器重新开始）
                                 resetInactiveTimer();
                             }
                             if (gameState.isPreview) checkAITrigger();
@@ -914,7 +986,7 @@
                                 p.isJumping = true;
                                 gameState.isRevived = true;
                                 playStartSound();
-                                resetInactiveTimer(); // 复活也算操作
+                                resetInactiveTimer();
                             } else {
                                 gameOver();
                                 return;
@@ -926,19 +998,16 @@
                     }
                 }
 
-                // ========== 五秒静止提示逻辑 ==========
+                // 五秒静止提示逻辑
                 if (gameState.isPlaying && !gameState.isPreview) {
                     const now = Date.now();
                     if (!p.isJumping && !gameState.isCharging) {
-                        // 玩家静止
                         if (gameState.inactiveTimerStart === null) {
                             gameState.inactiveTimerStart = now;
                         } else {
                             if (!gameState.showIdleMessage && (now - gameState.inactiveTimerStart >= 5000)) {
-                                // 达到5秒，显示消息
                                 gameState.showIdleMessage = true;
-                                gameState.inactiveTimerStart = null; // 重置计时，避免重复触发
-                                // 设置1秒后自动隐藏
+                                gameState.inactiveTimerStart = null;
                                 gameState.idleMessageTimeout = setTimeout(() => {
                                     if (gameState.showIdleMessage) {
                                         gameState.showIdleMessage = false;
@@ -948,19 +1017,17 @@
                             }
                         }
                     } else {
-                        // 玩家动了（跳跃或蓄力），重置计时器并隐藏消息
                         resetInactiveTimer();
                     }
                 } else {
-                    // 非游戏状态，重置
                     resetInactiveTimer();
                 }
 
                 drawPlatforms();
                 drawPlayer();
-                drawChargeBar();
+                drawChargeBar(); // 蓄力条绘制在玩家上方
                 drawMinimap();
-                drawIdleMessage(); // 绘制对话框
+                drawIdleMessage();
 
                 gameState.animFrameId = requestAnimationFrame(gameLoop);
             }
@@ -977,13 +1044,9 @@
                 gameState.isPlaying = false;
                 gameState.isPreview = false;
                 finalScoreDom.textContent = gameState.score;
-                if (gameState.score > gameState.highScore) {
-                    gameState.highScore = gameState.score;
-                    localStorage.setItem('jumpHighScore', gameState.highScore);
-                    highScoreDom.textContent = gameState.highScore;
-                }
                 let title = gameState.score <= 18 ? '菜鸟' : gameState.score < 45 ? '入上入' : '跳跳大王';
                 titleTextDom.textContent = title;
+                gameOverTitle.textContent = '游戏结束';
                 gameOverMask.style.display = 'flex';
                 gameControls.classList.remove('show');
                 startMenuBtn.classList.remove('show');
@@ -993,7 +1056,26 @@
                     cancelAnimationFrame(gameState.animFrameId);
                     gameState.animFrameId = null;
                 }
-                resetInactiveTimer(); // 重置计时器
+                resetInactiveTimer();
+            }
+
+            function gameWin() {
+                playDeathSound();
+                gameState.isPlaying = false;
+                gameState.isPreview = false;
+                finalScoreDom.textContent = gameState.score;
+                titleTextDom.textContent = '跳跳大王';
+                gameOverTitle.textContent = '恭喜通关！';
+                gameOverMask.style.display = 'flex';
+                gameControls.classList.remove('show');
+                startMenuBtn.classList.remove('show');
+                exitGameBtn.classList.remove('show');
+                scoreArea.classList.remove('hide');
+                if (gameState.animFrameId) {
+                    cancelAnimationFrame(gameState.animFrameId);
+                    gameState.animFrameId = null;
+                }
+                resetInactiveTimer();
             }
 
             function startRealGame(silent = false) {
@@ -1001,15 +1083,20 @@
                     cancelAnimationFrame(gameState.animFrameId);
                 }
 
+                gameState.level = 1;
+                gameState.targetScore = 1;
+                gameState.score = 0;
                 gameState.isPlaying = true;
                 gameState.isPreview = false;
-                gameState.score = 0; scoreDom.textContent = '0';
                 gameState.isRevived = false;
                 gameState.platformIdCounter = 0;
                 gameState.currentPlatformId = 0;
                 gameState.animFrame = 0;
                 gameOverMask.style.display = 'none';
-                resetInactiveTimer(); // 重置计时器
+                resetInactiveTimer();
+
+                targetScoreSpan.textContent = gameState.targetScore;
+                currentScoreSpan.textContent = gameState.score;
 
                 gameState.platforms = [];
                 const firstX = 58;
@@ -1024,6 +1111,14 @@
                 gameState.player.isJumping = true;
 
                 playStartSound();
+
+                // 显示第一关提示（黑色背景）
+                levelTip.textContent = '第一关';
+                levelTip.className = ''; // 黑色
+                levelTip.style.opacity = '1';
+                setTimeout(() => {
+                    levelTip.style.opacity = '0';
+                }, 1500);
 
                 gameControls.classList.add('show');
                 startMenuBtn.classList.remove('show');
@@ -1040,13 +1135,18 @@
 
                 gameState.isPlaying = false;
                 gameState.isPreview = true;
-                gameState.score = 0; scoreDom.textContent = '0';
+                gameState.level = 1;
+                gameState.targetScore = 1;
+                gameState.score = 0;
                 gameState.isRevived = false;
                 gameState.platformIdCounter = 0;
                 gameState.currentPlatformId = 0;
                 gameState.animFrame = 0;
                 gameOverMask.style.display = 'none';
                 resetInactiveTimer();
+
+                targetScoreSpan.textContent = gameState.targetScore;
+                currentScoreSpan.textContent = gameState.score;
 
                 gameState.platforms = [];
                 const firstX = 58;
@@ -1081,11 +1181,12 @@
                 gameState.isCharging = true;
                 gameState.chargeStartTime = Date.now();
                 startChargeSound();
-                if (gameState.score === 0) {
+                if (!tipShown) {
                     tipOverlay.style.opacity = '1';
                     setTimeout(() => tipOverlay.style.opacity = '0', 1600);
+                    tipShown = true;
                 }
-                resetInactiveTimer(); // 玩家操作
+                resetInactiveTimer();
             });
             canvas.addEventListener('mouseup', (e) => {
                 if (!gameState.isPlaying || !gameState.isCharging) return;
@@ -1099,13 +1200,13 @@
                 gameState.isCharging = false;
                 playJumpSound();
                 if (navigator.vibrate) navigator.vibrate(12);
-                resetInactiveTimer(); // 玩家操作
+                resetInactiveTimer();
             });
             canvas.addEventListener('mouseleave', (e) => {
                 if (!gameState.isPlaying || !gameState.isCharging) return;
                 stopChargeSound();
                 gameState.isCharging = false;
-                resetInactiveTimer(); // 取消蓄力也算操作
+                resetInactiveTimer();
             });
             canvas.addEventListener('touchstart', (e) => {
                 if (!gameState.isPlaying || gameState.player.isJumping) return;
@@ -1114,9 +1215,10 @@
                 gameState.isCharging = true;
                 gameState.chargeStartTime = Date.now();
                 startChargeSound();
-                if (gameState.score === 0) {
+                if (!tipShown) {
                     tipOverlay.style.opacity = '1';
                     setTimeout(() => tipOverlay.style.opacity = '0', 1600);
+                    tipShown = true;
                 }
                 resetInactiveTimer();
             }, { passive: false });
